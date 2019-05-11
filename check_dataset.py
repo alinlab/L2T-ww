@@ -47,6 +47,7 @@ class CIFARSubset(data.Dataset):
     def __len__(self):
         return len(self.indices)
 
+
 class SVHNSubset(CIFARSubset):
     def __init__(self, dataset, classes, indices):
         super(SVHNSubset, self).__init__(dataset, classes, indices)

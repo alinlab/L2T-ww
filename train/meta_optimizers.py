@@ -148,6 +148,7 @@ class MetaSGD(optim.SGD):
         self.prev_states = []
         self.set_state(curr_state)
 
+
 class MemoryEfficientMetaSGD(optim.SGD):
     def __init__(self, params, modules, lr=0.1, momentum=0, weight_decay=0, nesterov=False, rollback=False):
         super(MemoryEfficientMetaSGD, self).__init__(params, lr, momentum=momentum, weight_decay=weight_decay, nesterov=nesterov)
@@ -244,5 +245,3 @@ def test_metaSGD():
     sgd.meta_backward()
 
     print(lmbd.grad)
-    # tensor([[-1.1952, -7.1712],
-    #         [ 1.1952,  0.0000]])

@@ -1,4 +1,6 @@
-import os, argparse, random, logging
+import os
+import argparse
+import logging
 
 import torch
 import torch.nn as nn
@@ -11,6 +13,7 @@ from utils.utils import AverageMeter, accuracy, set_logging_config
 from train.meta_optimizers import MetaSGD
 
 torch.backends.cudnn.benchmark = True
+
 
 def _get_num_features(model):
     if model.startswith('resnet'):
@@ -28,6 +31,7 @@ def _get_num_features(model):
             return [64, 128, 256, 512, 512]
 
     raise NotImplementedError
+
 
 class FeatureMatching(nn.ModuleList):
     def __init__(self, source_model, target_model, pairs):
@@ -49,9 +53,11 @@ class FeatureMatching(nn.ModuleList):
             if sw == tw:
                 diff = source_features[src_idx] - self[i](target_features[tgt_idx])
             else:
-                diff = F.interpolate(source_features[src_idx],
-                                     scale_factor=tw/sw,
-                                     mode='bilinear') - self[i](target_features[tgt_idx])
+                diff = F.interpolate(
+                    source_features[src_idx],
+                    scale_factor=tw / sw,
+                    mode='bilinear'
+                ) - self[i](target_features[tgt_idx])
             diff = diff.pow(2).mean(3).mean(2)
             if loss_weight is None and weight is None:
                 diff = diff.mean(1).mean(0).mul(beta[i])
@@ -63,6 +69,7 @@ class FeatureMatching(nn.ModuleList):
                 diff = (diff.mul(weight[i]).sum(1)*(loss_weight[i].squeeze())).mean(0).mul(beta[i])
             matching_loss = matching_loss + diff
         return matching_loss
+
 
 class WeightNetwork(nn.ModuleList):
     def __init__(self, source_model, pairs):
@@ -82,6 +89,7 @@ class WeightNetwork(nn.ModuleList):
             outputs.append(F.softmax(self[i](f), 1))
         return outputs
 
+
 class LossWeightNetwork(nn.ModuleList):
     def __init__(self, source_model, pairs, weight_type='relu', init=None):
         super(LossWeightNetwork, self).__init__()
@@ -93,7 +101,6 @@ class LossWeightNetwork(nn.ModuleList):
                 l = nn.Linear(n[i], 1)
                 if init is not None:
                     nn.init.constant_(l.bias, init)
-                    # nn.init.constant_(l.weight, 0)
                 self.append(l)
         self.pairs = pairs
         self.weight_type = weight_type
@@ -111,16 +118,8 @@ class LossWeightNetwork(nn.ModuleList):
                     outputs.append(F.relu(self[i](f)))
                 elif self.weight_type == 'relu-avg':
                     outputs.append(F.relu(self[i](f.div(f.size(1)))))
-                elif self.weight_type == 'elu':
-                    outputs.append(F.elu(self[i](f))+1)
-                elif self.weight_type == 'sigmoid':
-                    outputs.append(F.sigmoid(2*self[i](f)))
-                elif self.weight_type == 'tanh':
-                    outputs.append(F.tanh(self[i](f))+1)
                 elif self.weight_type == 'relu6':
                     outputs.append(F.relu6(self[i](f)))
-                elif self.weight_type == 'softplus':
-                    outputs.append(F.softplus(self[i](f)))
         return outputs
 
 
@@ -150,8 +149,6 @@ def main():
 
     parser.add_argument('--meta-lr', type=float, default=1e-4, help='Initial learning rate for meta networks')
     parser.add_argument('--meta-wd', type=float, default=1e-4)
-    parser.add_argument('--meta-start', type=int, default=0)
-    parser.add_argument('--meta-period', type=int, default=1)
     parser.add_argument('--loss-weight', action='store_true', default=True)
     parser.add_argument('--loss-weight-type', type=str, default='relu6')
     parser.add_argument('--loss-weight-init', type=float, default=1.0)
@@ -177,8 +174,11 @@ def main():
         opt.model = opt.source_model
         weights = []
         source_gen_params = []
-        source_path = os.path.join(opt.source_path, '{}-{}'.format(opt.source_domain, opt.source_model), 
-                                '0', 'model_best.pth.tar')
+        source_path = os.path.join(
+            opt.source_path, '{}-{}'.format(opt.source_domain, opt.source_model),
+            '0',
+            'model_best.pth.tar'
+        )
         ckpt = torch.load(source_path)
         opt.num_classes = ckpt['num_classes']
         source_model = check_model(opt).to(device)
@@ -186,8 +186,8 @@ def main():
 
     pairs = []
     for pair in opt.pairs.split(','):
-        pairs.append(( int(pair.split('-')[0]),
-                       int(pair.split('-')[1])))
+        pairs.append((int(pair.split('-')[0]),
+                      int(pair.split('-')[1])))
 
     wnet = WeightNetwork(opt.source_model, pairs).to(device)
     weight_params = list(wnet.parameters())
@@ -237,7 +237,6 @@ def main():
 
     scheduler = optim.lr_scheduler.CosineAnnealingLR(target_optimizer, opt.epochs)
 
-
     def validate(model, loader):
         acc = AverageMeter()
         model.eval()
@@ -256,8 +255,6 @@ def main():
 
         weights = wnet(source_features)
         state['loss_weights'] = ''
-        # if opt.meta_lr == 0:
-        #     weights = None
         if opt.loss_weight:
             loss_weights = lwnet(source_features)
             state['loss_weights'] = ' '.join(['{:.2f}'.format(lw.mean().item()) for lw in loss_weights])
@@ -270,10 +267,6 @@ def main():
                                       weights, beta, loss_weights)
 
         state['accuracy'] = accuracy(y_pred.data, y, topk=(1,))[0].item()
-        if opt.meta_lr != 0:
-            state['entropy'] = weights[-1].mul(torch.log(weights[-1])).sum(1).mean().item() * (-1)
-        else:
-            state['entropy'] = -1.0
 
         if matching_only:
             return matching_loss
@@ -286,7 +279,6 @@ def main():
         x, y = data[0].to(device), data[1].to(device)
         y_pred, _ = target_model(x)
         state['accuracy'] = accuracy(y_pred.data, y, topk=(1,))[0].item()
-        state['entropy'] = -1.0
         loss = F.cross_entropy(y_pred, y)
         state['loss'] = loss.item()
         return loss
@@ -305,24 +297,23 @@ def main():
             inner_objective(data).backward()
             target_optimizer.step(None)
 
-            logger.info('[Epoch {:3d}] [Iter {:3d}] [Loss {:.4f}] [Acc {:.4f}] [Entropy {:.4f}] [LW {}]'.format(
+            logger.info('[Epoch {:3d}] [Iter {:3d}] [Loss {:.4f}] [Acc {:.4f}] [LW {}]'.format(
                 state['epoch'], state['iter'],
-                state['loss'], state['accuracy'], state['entropy'], state['loss_weights']))
+                state['loss'], state['accuracy'], state['loss_weights']))
             state['iter'] += 1
 
-            if opt.meta_lr > 0 and state['iter'] % opt.meta_period == 0 and opt.meta_start <= epoch:
-                for _ in range(opt.T):
-                    target_optimizer.zero_grad()
-                    target_optimizer.step(inner_objective, data, True)
-
+            for _ in range(opt.T):
                 target_optimizer.zero_grad()
-                target_optimizer.step(outer_objective, data)
+                target_optimizer.step(inner_objective, data, True)
 
-                target_optimizer.zero_grad()
-                source_optimizer.zero_grad()
-                outer_objective(data).backward()
-                target_optimizer.meta_backward()
-                source_optimizer.step()
+            target_optimizer.zero_grad()
+            target_optimizer.step(outer_objective, data)
+
+            target_optimizer.zero_grad()
+            source_optimizer.zero_grad()
+            outer_objective(data).backward()
+            target_optimizer.meta_backward()
+            source_optimizer.step()
 
         acc = (validate(target_model, loaders[1]),
                validate(target_model, loaders[2]))
@@ -334,6 +325,7 @@ def main():
             torch.save(state, os.path.join(opt.experiment, 'ckpt-{}.pth'.format(state['epoch']+1)))
 
         logger.info('[Epoch {}] [val {:.4f}] [test {:.4f}] [best {:.4f}]'.format(epoch, acc[0], acc[1], state['best'][1]))
+
 
 if __name__ == '__main__':
     main()
