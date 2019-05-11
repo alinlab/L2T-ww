@@ -2,10 +2,12 @@ import torch.autograd as autograd
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+
 def linear_p(inputs, weight, bias, delta_w, delta_b):
     return F.linear(inputs,
                     weight + delta_w * 0.0001,
                     bias + delta_b * 0.0001)
+
 
 def conv2d_p(inputs, weight, bias, delta_w, delta_b):
     return F.conv2d(inputs,
@@ -72,7 +74,6 @@ def conv2d(inputs, weight, bias, meta_step_size=0.001, stride=1, padding=0, dila
         return F.conv2d(inputs, weight, bias, stride, padding, dilation, groups)
 
 
-
 def batchnorm2d(inputs, running_mean, running_var, weight, bias, train, track_running_stats, momentum, eps, 
         meta_step_size=0.001, meta_loss=None, stop_gradient=False):
     if meta_loss is not None:
@@ -105,6 +106,7 @@ def batchnorm2d(inputs, running_mean, running_var, weight, bias, train, track_ru
                             eps)
     else:
         return F.batch_norm(inputs, running_mean, running_var, weight, bias, train, momentum, eps)
+
 
 def relu(inputs):
     return F.threshold(inputs, 0, 0, inplace=True)
