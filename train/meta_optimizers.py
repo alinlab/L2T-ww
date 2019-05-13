@@ -173,5 +173,3 @@ def test_metaSGD():
     sgd.meta_backward()
 
     print(lmbd.grad)
-    # tensor([[-1.1952, -7.1712],
-    #         [ 1.1952,  0.0000]])
