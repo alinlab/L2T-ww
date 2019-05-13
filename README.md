@@ -1,4 +1,4 @@
-# Learn What and Where to Transfer (L2T-ww)
+# Learning What and Where to Transfer (ICML 2019)
 Learning What and Where to Transfer (ICML 2019)
 
 ## Requirements
